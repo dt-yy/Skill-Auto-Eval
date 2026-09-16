@@ -1,0 +1,3 @@
+# NVIDIA SkillSpector release package used by `skill-eval run --suite security`.
+# Pin this in CI for reproducible security gates; update deliberately.
+skillspector==2.11.2

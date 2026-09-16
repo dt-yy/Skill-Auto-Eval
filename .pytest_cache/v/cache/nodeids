@@ -1,0 +1,4 @@
+[
+  "tests/test_cli.py::test_help",
+  "tests/test_cli.py::test_missing_skill"
+]
