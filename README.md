@@ -63,6 +63,11 @@ python -m pip install -e .
   tar -xzf "$skill_up_archive" skill-up
   install -m 0755 skill-up "$CONDA_PREFIX/bin/skill-up"
 )
+=======
+
+需要复现结果时，应指定已发布的固定版本，例如：
+
+skill-eval install --tool skill-up --skill-up-version 0.11.0
 ```
 
 ### 配置路径并验证
