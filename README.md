@@ -12,12 +12,9 @@
 
 ```powershell
 cd D:\pdf-bench-v2\Skill-Auto-Eval
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
 python --version
 ```
 
-如果当前终端不允许激活脚本，可直接使用 `.\.venv\Scripts\python.exe` 和 `.\.venv\Scripts\skill-eval.exe` 替代以下命令中的 `python`、`skill-eval`，无需修改系统策略。
 
 ## 2. 首次安装
 
