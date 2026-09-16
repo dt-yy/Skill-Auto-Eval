@@ -8,11 +8,16 @@
 - 运行效果评测还需要安装并登录 `eval.yaml` 所指定的 Agent Engine，如 Claude Code 或 Codex，并配置其模型服务。
 - 单独运行安全静态扫描不需要效果评测的 Engine 或模型密钥。
 
-进入仓库并创建虚拟环境：
+以下命令使用 Linux Bash 和已有的 `Unlimited-OCR` conda 环境（本机为 Python 3.12.13），无需再创建 `.venv`：
 
-```powershell
-cd D:\pdf-bench-v2\Skill-Auto-Eval
+```bash
+source /home/quyuan/miniconda3/etc/profile.d/conda.sh
+conda activate Unlimited-OCR
+cd /home/quyuan/quyuan/auto_eval/Skill-Auto-Eval
+# 避免 ~/.local 中其他 Python 环境的包干扰当前环境
+export PYTHONNOUSERSITE=1
 python --version
+python -c 'import sys; print(sys.executable)'
 ```
 
 
@@ -20,7 +25,7 @@ python --version
 
 ### 安装 Skillspector 和本项目命令
 
-```powershell
+```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -e .
@@ -30,38 +35,53 @@ python -m pip install -e .
 
 如果包索引没有对应版本或缺少当前 Python/平台的可用包，安装会失败；请检查发布情况及 Python 版本，不要把依赖安装失败当作评测失败。
 
-### 安装 skill-up Release
+### 安装 skill-up Linux Release
 
-```powershell
-skill-eval install --tool skill-up --skill-up-version latest
-```
+当前 `skill-eval install --tool skill-up`（包括默认的 `--tool all`）只调用 PowerShell 安装脚本，Linux 请使用下面的 Bash 步骤。需要 `curl`、`tar`、`sha256sum` 和 `install`。
 
-安装脚本从 `alibaba/skill-up` 的 GitHub Release 下载 Windows 压缩包和校验文件，安装位置为：
+固定版本便于复现；安装到当前 conda 环境的 `bin`，不覆盖 `~/.local/bin` 中可能已有的旧版本：
 
-```text
-%LOCALAPPDATA%\skill-eval\bin\skill-up.exe
-```
-
-需要复现结果时，应指定已发布的固定版本，例如：
-
-```powershell
-skill-eval install --tool skill-up --skill-up-version 0.11.0
+```bash
+(
+  set -euo pipefail
+  : "${CONDA_PREFIX:?请先 conda activate Unlimited-OCR}"
+  skill_up_version=0.11.0
+  case "$(uname -m)" in
+    x86_64) skill_up_arch=amd64 ;;
+    aarch64|arm64) skill_up_arch=arm64 ;;
+    *) echo "不支持的架构：$(uname -m)" >&2; exit 1 ;;
+  esac
+  skill_up_archive="skill-up_${skill_up_version}_linux_${skill_up_arch}.tar.gz"
+  skill_up_url="https://github.com/alibaba/skill-up/releases/download/v${skill_up_version}"
+  skill_up_tmp=$(mktemp -d)
+  trap 'rm -rf "$skill_up_tmp"' EXIT
+  cd "$skill_up_tmp"
+  curl -fL --retry 3 "$skill_up_url/$skill_up_archive" -o "$skill_up_archive"
+  curl -fL --retry 3 "$skill_up_url/skill-up_${skill_up_version}_checksums.txt" -o checksums.txt
+  awk -v name="$skill_up_archive" '$2 == name {print; found=1} END {if (!found) exit 1}' checksums.txt > selected-checksum.txt
+  sha256sum --check selected-checksum.txt
+  tar -xzf "$skill_up_archive" skill-up
+  install -m 0755 skill-up "$CONDA_PREFIX/bin/skill-up"
+)
 ```
 
 ### 配置路径并验证
 
-在运行评测的同一个 PowerShell 终端设置：
+在已激活 `Unlimited-OCR` 的同一个 Bash 终端设置：
 
-```powershell
-$env:SKILL_UP_BIN = "$env:LOCALAPPDATA\skill-eval\bin\skill-up.exe"
-$env:SKILLSPECTOR_BIN = "$PWD\.venv\Scripts\skillspector.exe"
+```bash
+export SKILL_UP_BIN="$CONDA_PREFIX/bin/skill-up"
+export SKILLSPECTOR_BIN="$CONDA_PREFIX/bin/skillspector"
+hash -r
 
-skill-eval --help
-& $env:SKILL_UP_BIN --version
-& $env:SKILLSPECTOR_BIN --version
+python -m skill_eval.cli --help
+"$SKILL_UP_BIN" --version
+"$SKILLSPECTOR_BIN" --version
 ```
 
-上述环境变量只影响当前终端；新终端需重新设置。也可在每次运行时通过 `--skill-up` 和 `--skillspector` 指定绝对路径，命令行参数优先于环境变量。两者均未配置时使用 PATH 中的同名命令。
+后文使用 `python -m skill_eval.cli`，确保通过当前 conda Python 运行，避免 PATH 中其他环境的 `skill-eval` 启动脚本干扰。安装成功后也可使用 `"$CONDA_PREFIX/bin/skill-eval"`。
+
+上述环境变量只影响当前终端；新终端需重新激活环境并设置。也可在每次运行时通过 `--skill-up` 和 `--skillspector` 指定绝对路径，命令行参数优先于环境变量。两者均未配置时使用 PATH 中的同名命令。
 
 ## 3. 升级和版本管理
 
@@ -69,37 +89,34 @@ skill-eval --help
 
 编辑 `requirements.txt` 中的版本号，再执行：
 
-```powershell
+```bash
 python -m pip install --upgrade -r requirements.txt
-& $env:SKILLSPECTOR_BIN --version
+"$SKILLSPECTOR_BIN" --version
 ```
 
-为了保持版本锁定，推荐此方式。CLI 也支持直接安装指定版本：
+CLI 也支持只安装指定版本的 Skillspector：
 
-```powershell
-skill-eval install --tool skillspector --skillspector-version 2.11.2
+```bash
+python -m skill_eval.cli install --tool skillspector --skillspector-version 2.11.2
 ```
 
-直接安装不会自动修改 `requirements.txt`，应同步更新该文件。避免直接运行不带版本的 `skill-eval install`：其默认安装两个工具的最新版本，可能覆盖 requirements 中锁定的 Skillspector 版本。
+直接安装不会自动修改 `requirements.txt`，应同步更新该文件。不要在 Linux 上执行不带 `--tool skillspector` 的安装命令，默认流程会调用 Windows 脚本。
 
 ### 升级或切换 skill-up
 
-```powershell
-# 更新到最新 Release
-skill-eval install --tool skill-up --skill-up-version latest
+将上方 Linux Release 安装代码中的 `skill_up_version` 改为实际发布的版本号，再执行整段安装代码并检查：
 
-# 或指定某个已发布版本
-skill-eval install --tool skill-up --skill-up-version 0.11.0
-& $env:SKILL_UP_BIN --version
+```bash
+"$SKILL_UP_BIN" --version
 ```
 
-不传 `--skill-up-version` 时，读取 `SKILL_UP_VERSION` 环境变量；未设置时为 `latest`。升级后建议先运行固定的小样本 Case，核对报告及退出状态，再用于正式提测。
+升级后建议先运行固定的小样本 Case，核对报告及退出状态，再用于正式提测。
 
 ### 更新本项目
 
 更新仓库代码后，在仓库根目录执行：
 
-```powershell
+```bash
 python -m pip install -e .
 ```
 
@@ -126,8 +143,8 @@ my-skill/
 
 运行前可直接校验：
 
-```powershell
-& $env:SKILL_UP_BIN validate D:\path\to\my-skill\evals\eval.yaml
+```bash
+"$SKILL_UP_BIN" validate /path/to/my-skill/evals/eval.yaml
 ```
 
 配置格式参考 [skill-up 编写评测文档](https://alibaba.github.io/skill-up/guide/writing-evals.html)。
@@ -136,42 +153,43 @@ my-skill/
 
 先替换以下路径为真实 Skill 目录；建议每次使用独立的输出目录，并放在被扫描的 Skill 目录之外。
 
-```powershell
-$skillPath = "D:\path\to\my-skill"
-$evalPath = Join-Path $skillPath "evals\eval.yaml"
-$outputPath = Join-Path $PWD ("results\" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+```bash
+skill_path="/path/to/my-skill"
+eval_path="$skill_path/evals/eval.yaml"
+mkdir -p "$PWD/results"
+output_path=$(mktemp -d "$PWD/results/$(date +%Y%m%d-%H%M%S)-XXXXXX")
 ```
 
 ### 完整评测
 
-```powershell
-skill-eval run `
-  --skill $skillPath `
-  --eval $evalPath `
-  --suite all `
-  --output $outputPath
+```bash
+python -m skill_eval.cli run \
+  --skill "$skill_path" \
+  --eval "$eval_path" \
+  --suite all \
+  --output "$output_path"
 ```
 
 先执行 skill-up，再执行 Skillspector。已启动的效果评测即使返回非零，仍继续安全扫描；输入路径或必要参数校验失败时不会开始完整流程。
 
 ### 只评可用性和效果
 
-```powershell
-skill-eval run `
-  --skill $skillPath `
-  --eval $evalPath `
-  --suite effectiveness `
-  --output $outputPath
+```bash
+python -m skill_eval.cli run \
+  --skill "$skill_path" \
+  --eval "$eval_path" \
+  --suite effectiveness \
+  --output "$output_path"
 ```
 
 ### 只评安全性
 
-```powershell
-skill-eval run `
-  --skill $skillPath `
-  --suite security `
-  --format json `
-  --output $outputPath
+```bash
+python -m skill_eval.cli run \
+  --skill "$skill_path" \
+  --suite security \
+  --format json \
+  --output "$output_path"
 ```
 
 安全扫描当前固定传递 `--no-llm`、`--fail-on-findings`，无需额外添加；暂未提供开启 LLM 或关闭风险门禁的参数。静态扫描不等于完全离线，上游工具可能查询依赖漏洞数据库。检测结果不能保证覆盖所有密钥或恶意行为。
@@ -217,37 +235,77 @@ skill-up 产物以实际版本和 `eval.yaml` 的报告配置为准。安全报�
 
 ## 7. CI 使用
 
-在安装好 Python 3.12、Engine、凭证的 Windows Runner 上，可使用固定版本：
+在已有 `Unlimited-OCR` conda 环境的 Linux Runner 上，先按第 2 节安装固定版本 skill-up，再使用以下 Bash 脚本（按 Runner 实际位置调整路径）：
 
-```powershell
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+source /home/quyuan/miniconda3/etc/profile.d/conda.sh
+conda activate Unlimited-OCR
+export PYTHONNOUSERSITE=1
+cd /home/quyuan/quyuan/auto_eval/Skill-Auto-Eval
 python -m pip install -r requirements.txt
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 python -m pip install -e .
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-skill-eval install --tool skill-up --skill-up-version 0.11.0
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-$env:SKILL_UP_BIN = "$env:LOCALAPPDATA\skill-eval\bin\skill-up.exe"
-$env:SKILLSPECTOR_BIN = (Get-Command skillspector).Source
-skill-eval run --skill D:\path\to\my-skill --eval D:\path\to\my-skill\evals\eval.yaml --suite all --output .\results\ci
-exit $LASTEXITCODE
+export SKILL_UP_BIN="$CONDA_PREFIX/bin/skill-up"
+export SKILLSPECTOR_BIN="$CONDA_PREFIX/bin/skillspector"
+"$SKILL_UP_BIN" --version
+"$SKILLSPECTOR_BIN" --version
+mkdir -p "$PWD/results"
+ci_output=$(mktemp -d "$PWD/results/ci-XXXXXX")
+python -m skill_eval.cli run \
+  --skill /path/to/my-skill \
+  --eval /path/to/my-skill/evals/eval.yaml \
+  --suite all \
+  --output "$ci_output"
 ```
+
+完整评测还需事先安装并配置 `eval.yaml` 指定的 Engine 和模型凭证。`set -e` 会让安装或评测失败时保留非零退出状态。
 
 按 CI 平台的 secret 注入机制配置凭证。使用全新的工作目录或输出目录，保留原始报告作为受控访问的产物。
 
 ## 8. 常见问题
 
-- **找不到 skill-eval**：确认已在当前 Python 环境执行 `python -m pip install -e .`；也可用 `.\.venv\Scripts\skill-eval.exe`。
+- **找不到 skill-eval**：确认已在当前 Python 环境执行 `python -m pip install -e .`；优先使用 `python -m skill_eval.cli`，或 `"$CONDA_PREFIX/bin/skill-eval"`。若出现 `bad interpreter`，检查是否误用了 `~/.local/bin` 中属于其他环境的旧脚本。
 - **Skillspector 安装失败**：检查 Python 是否为 3.12–3.14、固定版本是否已发布，以及依赖包在当前平台是否可安装。
-- **找不到评测器**：检查 `SKILL_UP_BIN`、`SKILLSPECTOR_BIN` 或显式可执行文件路径；skill-up 安装脚本不会自动配置 PATH。
+- **找不到评测器**：检查 `SKILL_UP_BIN`、`SKILLSPECTOR_BIN` 或显式可执行文件路径；确认路径位于当前 `$CONDA_PREFIX/bin`，且文件有执行权限。
 - **GitHub Release 下载失败**：检查版本、网络、代理和 GitHub API 限额；重新安装前先确认下载错误原因。
 - **效果评测报模型或鉴权错误**：检查 `eval.yaml` 和对应 Agent Engine 的登录/模型配置。工具安装成功不等于模型服务已配置。
 - **安全评测非零退出**：查看安全报告区分实际风险与扫描执行错误，不要仅凭退出码判定 Skill 恶意。
 
 ## 9. 开发测试
 
-```powershell
+在仓库根目录、已激活的 `Unlimited-OCR` 环境中运行：
+
+```bash
 python -m pip install pytest
 python -m pytest -q
 ```
 
+### 安全扫描冒烟测试
+
+下面创建临时 Skill，并调用真实 Skillspector；无需模型密钥。输出保留在打印的临时目录中，便于检查：
+
+```bash
+smoke_root=$(mktemp -d /tmp/skill-auto-eval-smoke-XXXXXX)
+mkdir -p "$smoke_root/skill"
+cat > "$smoke_root/skill/SKILL.md" <<'EOF'
+---
+name: greeting-smoke
+description: Return a short greeting when the user asks for a greeting.
+---
+When asked for a greeting, reply with "Hello!". No tools or file access are needed.
+EOF
+set +e
+python -m skill_eval.cli run \
+  --skill "$smoke_root/skill" \
+  --suite security \
+  --format json \
+  --output "$smoke_root/results"
+smoke_status=$?
+set -e
+printf '退出码：%s\n报告目录：%s\n' "$smoke_status" "$smoke_root/results"
+python -m json.tool "$smoke_root/results/security.json"
+exit "$smoke_status"
+```
+
+开发测试验证 CLI 基本行为；安全冒烟测试验证真实扫描和报告生成。效果评测需另备真实 `eval.yaml` 和模型服务，以上测试不代表效果评测已通过。
