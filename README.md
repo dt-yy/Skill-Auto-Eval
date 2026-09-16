@@ -36,11 +36,6 @@ python -m pip install -e .
 skill-eval install --tool skill-up --skill-up-version latest
 ```
 
-安装脚本从 `alibaba/skill-up` 的 GitHub Release 下载 Windows 压缩包和校验文件，安装位置为：
-
-```text
-%LOCALAPPDATA%\skill-eval\bin\skill-up.exe
-```
 
 需要复现结果时，应指定已发布的固定版本，例如：
 
