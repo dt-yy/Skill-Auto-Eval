@@ -37,7 +37,7 @@ python -m pip install -e .
 
 ### 安装 skill-up Linux Release
 
-当前 `skill-eval install --tool skill-up`（包括默认的 `--tool all`）只调用 PowerShell 安装脚本，Linux 请使用下面的 Bash 步骤。需要 `curl`、`tar`、`sha256sum` 和 `install`。
+本项目的 skill-up 安装步骤面向 Linux Bash。需要 `curl`、`tar`、`sha256sum` 和 `install`。
 
 固定版本便于复现；安装到当前 conda 环境的 `bin`，不覆盖 `~/.local/bin` 中可能已有的旧版本：
 
@@ -63,11 +63,6 @@ python -m pip install -e .
   tar -xzf "$skill_up_archive" skill-up
   install -m 0755 skill-up "$CONDA_PREFIX/bin/skill-up"
 )
-=======
-
-需要复现结果时，应指定已发布的固定版本，例如：
-
-skill-eval install --tool skill-up --skill-up-version 0.11.0
 ```
 
 ### 配置路径并验证
@@ -105,7 +100,7 @@ CLI 也支持只安装指定版本的 Skillspector：
 python -m skill_eval.cli install --tool skillspector --skillspector-version 2.11.2
 ```
 
-直接安装不会自动修改 `requirements.txt`，应同步更新该文件。不要在 Linux 上执行不带 `--tool skillspector` 的安装命令，默认流程会调用 Windows 脚本。
+直接安装不会自动修改 `requirements.txt`，应同步更新该文件。Linux 上只使用 `--tool skillspector` 安装 Skillspector；skill-up 按第 2 节的 Linux Release 步骤安装。
 
 ### 升级或切换 skill-up
 
